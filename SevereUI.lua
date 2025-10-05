@@ -5,6 +5,7 @@ SevereUI.Settings = {
     UIScale = 1.0,
     FontSize = 12,
     AnimationSpeed = 0.3,
+    ToggleKey = Enum.KeyCode.RightShift,
     Theme = {
         Background = Color3.fromRGB(15, 15, 17),
         Header = Color3.fromRGB(20, 20, 23),
@@ -129,13 +130,191 @@ function SevereUI:CreateWindow(title, width, height)
         Tabs = {},
         CurrentTab = nil,
         LastMouseState = false,
-        ScrollOffsets = {}
+        ScrollOffsets = {},
+        SettingsTab = nil,
+        LastKeyState = {}
     }
     
     -- Update dimensions based on scale
     function window:UpdateScale()
         self.Width = Scale(self.BaseWidth)
         self.Height = Scale(self.BaseHeight)
+    end
+    
+    -- Create built-in settings tab
+    function window:CreateSettingsTab()
+        local settingsTab = {
+            Name = "Settings",
+            Columns = {},
+            Window = self,
+            IsSettingsTab = true
+        }
+        
+        -- Add settings column
+        local column = {
+            Elements = {},
+            Tab = settingsTab
+        }
+        
+        -- Helper to add elements to settings
+        function column:AddSection(name)
+            local section = {
+                Type = "Section",
+                Name = name,
+                Elements = {}
+            }
+            
+            function section:AddToggle(text, default, callback)
+                local element = {
+                    Type = "Toggle",
+                    Text = text,
+                    Value = default or false,
+                    Callback = callback or function() end,
+                    ColorPicker = nil
+                }
+                
+                function element:SetValue(value)
+                    self.Value = value
+                    pcall(self.Callback, value)
+                end
+                
+                function element:AddColorPicker(defaultColor, callback)
+                    self.ColorPicker = {
+                        Color = defaultColor or Color3.fromRGB(255, 255, 255),
+                        Callback = callback or function() end,
+                        Open = false,
+                        Hue = 0,
+                        Saturation = 1,
+                        Value = 1,
+                        DraggingPicker = false,
+                        DraggingHue = false
+                    }
+                    
+                    -- Convert RGB to HSV
+                    local r, g, b = defaultColor.R, defaultColor.G, defaultColor.B
+                    local max = math.max(r, g, b)
+                    local min = math.min(r, g, b)
+                    local delta = max - min
+                    
+                    self.ColorPicker.Value = max
+                    self.ColorPicker.Saturation = max == 0 and 0 or (delta / max)
+                    
+                    if delta == 0 then
+                        self.ColorPicker.Hue = 0
+                    elseif max == r then
+                        self.ColorPicker.Hue = ((g - b) / delta) % 6
+                    elseif max == g then
+                        self.ColorPicker.Hue = ((b - r) / delta) + 2
+                    else
+                        self.ColorPicker.Hue = ((r - g) / delta) + 4
+                    end
+                    self.ColorPicker.Hue = self.ColorPicker.Hue / 6
+                    
+                    function self.ColorPicker:UpdateFromHSV()
+                        local h, s, v = self.Hue * 6, self.Saturation, self.Value
+                        local c = v * s
+                        local x = c * (1 - math.abs((h % 2) - 1))
+                        local m = v - c
+                        
+                        local r, g, b
+                        if h < 1 then r, g, b = c, x, 0
+                        elseif h < 2 then r, g, b = x, c, 0
+                        elseif h < 3 then r, g, b = 0, c, x
+                        elseif h < 4 then r, g, b = 0, x, c
+                        elseif h < 5 then r, g, b = x, 0, c
+                        else r, g, b = c, 0, x
+                        end
+                        
+                        self.Color = Color3.new(r + m, g + m, b + m)
+                        pcall(self.Callback, self.Color)
+                    end
+                    
+                    return self
+                end
+                
+                table.insert(section.Elements, element)
+                return element
+            end
+            
+            function section:AddSlider(text, min, max, default, suffix, callback)
+                local element = {
+                    Type = "Slider",
+                    Text = text,
+                    Min = min or 0,
+                    Max = max or 100,
+                    Value = default or 50,
+                    Suffix = suffix or "",
+                    Callback = callback or function() end,
+                    Dragging = false
+                }
+                
+                function element:SetValue(value)
+                    self.Value = math.clamp(value, self.Min, self.Max)
+                    pcall(self.Callback, self.Value)
+                end
+                
+                table.insert(section.Elements, element)
+                return element
+            end
+            
+            function section:AddDropdown(text, options, default, callback)
+                local element = {
+                    Type = "Dropdown",
+                    Text = text,
+                    Options = options or {"Option 1", "Option 2"},
+                    Selected = default or (options and options[1]) or "None",
+                    Callback = callback or function() end,
+                    Open = false,
+                    Multi = false
+                }
+                
+                function element:SetValue(value)
+                    if table.find(self.Options, value) then
+                        self.Selected = value
+                        pcall(self.Callback, value)
+                    end
+                end
+                
+                table.insert(section.Elements, element)
+                return element
+            end
+            
+            function section:AddLabel(text)
+                table.insert(section.Elements, {
+                    Type = "Label",
+                    Text = text
+                })
+            end
+            
+            table.insert(column.Elements, section)
+            return section
+        end
+        
+        table.insert(settingsTab.Columns, column)
+        
+        -- Add UI settings
+        local uiSection = column:AddSection("UI Settings")
+        
+        uiSection:AddSlider("UI Scale", 0.5, 2.0, SevereUI.Settings.UIScale, "x", function(value)
+            SevereUI.Settings.UIScale = value
+        end)
+        
+        uiSection:AddSlider("Font Size", 8, 20, SevereUI.Settings.FontSize, "px", function(value)
+            SevereUI.Settings.FontSize = value
+        end)
+        
+        -- Add theme selector
+        local themeSection = column:AddSection("Theme")
+        
+        themeSection:AddDropdown("Select Theme", {"Default", "Purple", "Green", "Red", "Orange"}, "Default", function(value)
+            SevereUI:SetTheme(value)
+        end)
+        
+        -- Add keybind info
+        local keybindSection = column:AddSection("Keybinds")
+        keybindSection:AddLabel("Toggle UI: Right Shift")
+        
+        return settingsTab
     end
     
     function window:AddTab(name)
@@ -333,6 +512,27 @@ function SevereUI:CreateWindow(title, width, height)
         end
         
         return tab
+    end
+    
+    -- Initialize settings tab
+    window.SettingsTab = window:CreateSettingsTab()
+    table.insert(window.Tabs, window.SettingsTab)
+    window.ScrollOffsets[window.SettingsTab] = 0
+    
+    -- Setup keybind handler
+    function window:HandleKeybinds()
+        local isKeyPressed = iskeydown(SevereUI.Settings.ToggleKey)
+        local wasKeyPressed = self.LastKeyState[SevereUI.Settings.ToggleKey] or false
+        
+        if isKeyPressed and not wasKeyPressed then
+            self.Visible = not self.Visible
+        end
+        
+        self.LastKeyState[SevereUI.Settings.ToggleKey] = isKeyPressed
+    end
+    
+    function window:Toggle()
+        self.Visible = not self.Visible
     end
     
     function window:Render()
@@ -1034,6 +1234,9 @@ function SevereUI:CreateWindow(title, width, height)
     end
     
     function window:UpdateInput()
+        -- Handle keybinds even when UI is hidden
+        self:HandleKeybinds()
+        
         if not self.Visible then return end
         
         local mousePos = getmouseposition()
