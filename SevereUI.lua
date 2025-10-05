@@ -521,7 +521,17 @@ function SevereUI:CreateWindow(title, width, height)
     
     -- Setup keybind handler
     function window:HandleKeybinds()
-        local isKeyPressed = iskeydown(SevereUI.Settings.ToggleKey)
+        local pressedKeys = getpressedkeys()
+        local isKeyPressed = false
+        
+        -- Check if toggle key is in the pressed keys table
+        for _, keyCode in ipairs(pressedKeys) do
+            if keyCode == SevereUI.Settings.ToggleKey then
+                isKeyPressed = true
+                break
+            end
+        end
+        
         local wasKeyPressed = self.LastKeyState[SevereUI.Settings.ToggleKey] or false
         
         if isKeyPressed and not wasKeyPressed then
