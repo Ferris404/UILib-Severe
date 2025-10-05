@@ -2,10 +2,10 @@
 
 ```lua
 -- Load the library
-local LinoriaUI = require(script) -- or load from file
+local SevereUI = require(script) -- or load from file
 
 -- Create a window
-local Window = LinoriaUI:CreateWindow("My UI", 650, 550)
+local Window = SevereUI:CreateWindow("My UI", 650, 550)
 
 -- Create tabs
 local MainTab = Window:AddTab("Main")
@@ -78,28 +78,28 @@ section:AddLabel("Text")
 
 ### Preset Themes
 ```lua
-LinoriaUI:SetTheme("Default")    -- Default dark theme
-LinoriaUI:SetTheme("Purple")     -- Purple accent
-LinoriaUI:SetTheme("Green")      -- Green accent
-LinoriaUI:SetTheme("Red")        -- Red accent
-LinoriaUI:SetTheme("Orange")     -- Orange accent
+SevereUI:SetTheme("Default")    -- Default dark theme
+SevereUI:SetTheme("Purple")     -- Purple accent
+SevereUI:SetTheme("Green")      -- Green accent
+SevereUI:SetTheme("Red")        -- Red accent
+SevereUI:SetTheme("Orange")     -- Orange accent
 ```
 
 ### Custom Theme
 ```lua
-LinoriaUI.Settings.Theme.Accent = Color3.fromRGB(100, 200, 255)
-LinoriaUI.Settings.Theme.AccentDark = Color3.fromRGB(70, 140, 178)
+SevereUI.Settings.Theme.Accent = Color3.fromRGB(100, 200, 255)
+SevereUI.Settings.Theme.AccentDark = Color3.fromRGB(70, 140, 178)
 ```
 
 ### UI Scaling
 ```lua
-LinoriaUI.Settings.UIScale = 1.2  -- 120% scale
-LinoriaUI.Settings.FontSize = 14  -- Font size
+SevereUI.Settings.UIScale = 1.2  -- 120% scale
+SevereUI.Settings.FontSize = 14  -- Font size
 ```
 
 ## 📝 API Reference
 
-### LinoriaUI:CreateWindow(title, width, height)
+### SevereUI:CreateWindow(title, width, height)
 Creates a new draggable window.
 
 ### window:AddTab(name)
