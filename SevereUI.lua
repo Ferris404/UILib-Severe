@@ -5,7 +5,7 @@ SevereUI.Settings = {
     UIScale = 1.0,
     FontSize = 12,
     AnimationSpeed = 0.3,
-    ToggleKey = 0x10, -- Right Shift keycode
+    ToggleKey = "P", -- P key
     Theme = {
         Background = Color3.fromRGB(15, 15, 17),
         Header = Color3.fromRGB(20, 20, 23),
@@ -310,9 +310,30 @@ function SevereUI:CreateWindow(title, width, height)
             SevereUI:SetTheme(value)
         end)
         
-        -- Add keybind info
+        -- Add keybind customization
         local keybindSection = column:AddSection("Keybinds")
-        keybindSection:AddLabel("Toggle UI: Right Shift")
+        
+        local keybindElement = {
+            Type = "Keybind",
+            Text = "Toggle UI",
+            Key = SevereUI.Settings.ToggleKey,
+            Listening = false,
+            WaitingForRelease = false,
+            IgnoreNextPress = false,
+            Callback = function(key)
+                SevereUI.Settings.ToggleKey = key
+                print("[SevereUI] Toggle key changed to: " .. key)
+            end
+        }
+        
+        function keybindElement:SetKey(key)
+            self.Key = key
+            self.IgnoreNextPress = true
+            SevereUI.Settings.ToggleKey = key
+            pcall(self.Callback, key)
+        end
+        
+        table.insert(keybindSection.Elements, keybindElement)
         
         return settingsTab
     end
@@ -521,12 +542,14 @@ function SevereUI:CreateWindow(title, width, height)
     
     -- Setup keybind handler
     function window:HandleKeybinds()
-        local pressedKeys = getpressedkeys()
+        local success, pressedKeys = pcall(getpressedkeys)
+        if not success or not pressedKeys then return end
+        
         local isKeyPressed = false
         
         -- Check if toggle key is in the pressed keys table
-        for _, keyCode in ipairs(pressedKeys) do
-            if keyCode == SevereUI.Settings.ToggleKey then
+        for _, key in ipairs(pressedKeys) do
+            if key == SevereUI.Settings.ToggleKey then
                 isKeyPressed = true
                 break
             end
@@ -536,6 +559,7 @@ function SevereUI:CreateWindow(title, width, height)
         
         if isKeyPressed and not wasKeyPressed then
             self.Visible = not self.Visible
+            print("[SevereUI] UI toggled - Visible: " .. tostring(self.Visible))
         end
         
         self.LastKeyState[SevereUI.Settings.ToggleKey] = isKeyPressed
@@ -912,6 +936,24 @@ function SevereUI:CreateWindow(title, width, height)
                                 "Tamzen"
                             )
                             elementY = elementY + Scale(18)
+                            
+                        elseif element.Type == "Keybind" then
+                            -- Keybind label
+                            DrawingImmediate.OutlinedText(Vector2.new(columnX + Scale(10), elementY + Scale(3)), fontSize - 1, Theme.Text, 1, element.Text, false, "Tamzen")
+                            
+                            -- Keybind button
+                            local keyButtonX = columnX + columnWidth - Scale(80)
+                            local keyButtonWidth = Scale(70)
+                            local keyButtonHeight = Scale(20)
+                            
+                            local buttonColor = element.Listening and Theme.Accent or Theme.Element
+                            DrawingImmediate.FilledRectangle(Vector2.new(keyButtonX, elementY), Vector2.new(keyButtonWidth, keyButtonHeight), buttonColor, 1, Scale(3))
+                            DrawingImmediate.Rectangle(Vector2.new(keyButtonX, elementY), Vector2.new(keyButtonWidth, keyButtonHeight), Theme.Border, 1, Scale(3), 1)
+                            
+                            local displayText = element.Listening and "..." or element.Key
+                            DrawingImmediate.OutlinedText(Vector2.new(keyButtonX + keyButtonWidth / 2, elementY + Scale(4)), fontSize - 1, Theme.Text, 1, displayText, true, "Tamzen")
+                            
+                            elementY = elementY + Scale(28)
                         end
                     end
                     
@@ -1157,6 +1199,56 @@ function SevereUI:CreateWindow(title, width, height)
                             
                         elseif element.Type == "Label" then
                             elementY = elementY + Scale(18)
+                            
+                        elseif element.Type == "Keybind" then
+                            local keyButtonX = columnX + columnWidth - Scale(80)
+                            local keyButtonWidth = Scale(70)
+                            local keyButtonHeight = Scale(20)
+                            
+                            -- Check keybind button click
+                            if mouseClicked and IsPointInRect(mx, my, keyButtonX, elementY, keyButtonWidth, keyButtonHeight) then
+                                element.Listening = not element.Listening
+                                if element.Listening then
+                                    element.WaitingForRelease = true
+                                end
+                                self.LastMouseState = mousePressed
+                                return
+                            end
+                            
+                            -- Handle keybind listening
+                            if element.Listening then
+                                local pressedKeys = getpressedkeys()
+                                if element.WaitingForRelease then
+                                    if not pressedKeys or #pressedKeys == 0 then
+                                        element.WaitingForRelease = false
+                                    end
+                                else
+                                    if pressedKeys and #pressedKeys > 0 then
+                                        local newKey = pressedKeys[1]
+                                        
+                                        -- Filter out mouse buttons
+                                        local mouseButtons = {"LeftMouse", "RightMouse", "MiddleMouse", "XButton1", "XButton2"}
+                                        local isValid = true
+                                        for _, mouseBtn in ipairs(mouseButtons) do
+                                            if newKey == mouseBtn then
+                                                isValid = false
+                                                print("[SevereUI] Cannot use mouse buttons as toggle key!")
+                                                element.Listening = false
+                                                element.WaitingForRelease = false
+                                                break
+                                            end
+                                        end
+                                        
+                                        if isValid and newKey ~= element.Key then
+                                            element:SetKey(newKey)
+                                            element.Listening = false
+                                            element.WaitingForRelease = false
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            elementY = elementY + Scale(28)
                         end
                     end
                     
@@ -1237,6 +1329,8 @@ function SevereUI:CreateWindow(title, width, height)
                 height = height + Scale(50)
             elseif element.Type == "Label" then
                 height = height + Scale(18)
+            elseif element.Type == "Keybind" then
+                height = height + Scale(28)
             end
         end
         
